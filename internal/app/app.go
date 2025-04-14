@@ -12,11 +12,10 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/ereminiu/pvz/internal/app/config"
 	"github.com/ereminiu/pvz/internal/background"
 	"github.com/ereminiu/pvz/internal/cache"
-	"github.com/ereminiu/pvz/internal/config/application"
 	auconfig "github.com/ereminiu/pvz/internal/config/auditlog"
-	kafkaconfig "github.com/ereminiu/pvz/internal/config/kafka"
 	"github.com/ereminiu/pvz/internal/config/postgres"
 	redisconf "github.com/ereminiu/pvz/internal/config/redis"
 	"github.com/ereminiu/pvz/internal/pkg/auditlog"
@@ -86,51 +85,6 @@ func getAuditLog(auditlogConfig auconfig.Config, repos *rep.Repository, outbox *
 	return auditlogger
 }
 
-func loadDBConfig() postgres.Config {
-	config, err := postgres.New()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return config
-}
-
-func loadRedisConfig() redisconf.Config {
-	config, err := redisconf.New()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return config
-}
-
-func loadAppConfig() application.Config {
-	config, err := application.New()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return config
-}
-
-func loadAuditLogConfig() auconfig.Config {
-	config, err := auconfig.New()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return config
-}
-
-func loadKafkaConfig() kafkaconfig.Config {
-	config, err := kafkaconfig.New()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return config
-}
-
 func initLogger() {
 	logger, err := pkglog.NewLogger("local")
 	if err != nil {
@@ -146,13 +100,9 @@ func Run() {
 
 	initLogger()
 
-	dbConfig := loadDBConfig()
-	appConfig := loadAppConfig()
-	auditLogConfig := loadAuditLogConfig()
-	redisConfig := loadRedisConfig()
-	kafkaConfig := loadKafkaConfig()
+	config := config.Mustload()
 
-	conn, err := getConnection(ctx, dbConfig)
+	conn, err := getConnection(ctx, config.Postgres)
 	if err != nil {
 		slog.Error("err", slog.Any("err", err))
 		return
@@ -160,7 +110,7 @@ func Run() {
 
 	defer conn.GetPool().Close()
 
-	redisClient, err := getRedisConnection(ctx, redisConfig)
+	redisClient, err := getRedisConnection(ctx, config.Redis)
 	if err != nil {
 		slog.Error("err", slog.Any("err", err))
 		return
@@ -174,18 +124,18 @@ func Run() {
 
 	usecases := uc.New(repository, cache)
 
-	outobx, err := kafkaoutbox.New(repository, kafkaConfig.GetAddress())
+	outobx, err := kafkaoutbox.New(repository, config.Kafka.GetAddress())
 	if err != nil {
 		slog.Error("error during init outbox", slog.Any("err", err))
 		return
 	}
-	audit := getAuditLog(auditLogConfig, repository, outobx)
+	audit := getAuditLog(config.Audit, repository, outobx)
 
 	h := hnd.New(ctx, usecases, audit)
 
 	router := restRouter.New(h)
 	restServer := rest.New(rest.Deps{
-		Config: appConfig,
+		Config: config.App,
 		Router: router,
 	})
 
@@ -195,22 +145,22 @@ func Run() {
 		PVZHandler:   grpcpvz.New(usecases),
 	})
 
-	monServer := monitoring.New(appConfig.MonitoringPort)
+	monServer := monitoring.New(config.App.MonitoringPort)
 
 	backgrounder := background.New(usecases, cache)
 
 	_, closer := tracing.InitTracer(tracing.TracerConfig{
-		ServiceName: appConfig.ServiceName,
-		Host:        appConfig.Host,
-		Port:        appConfig.TracerPort,
+		ServiceName: config.App.ServiceName,
+		Host:        config.App.Host,
+		Port:        config.App.TracerPort,
 	})
 	defer closer.Close()
 
-	go backgrounder.Run(ctx, appConfig.CacheUpateTimeout, func(ctx context.Context) error {
+	go backgrounder.Run(ctx, config.App.CacheUpateTimeout, func(ctx context.Context) error {
 		return backgrounder.FillHistory(ctx)
 	})
 
-	go backgrounder.Run(ctx, appConfig.CacheUpateTimeout, func(ctx context.Context) error {
+	go backgrounder.Run(ctx, config.App.CacheUpateTimeout, func(ctx context.Context) error {
 		return backgrounder.FillRefunds(ctx)
 	})
 
@@ -225,7 +175,7 @@ func Run() {
 
 	go func() {
 		slog.InfoContext(ctx, "gRPC-server is started")
-		if err = grpcServer.ListenAndServe(appConfig.GRPCPort); err != nil {
+		if err = grpcServer.ListenAndServe(config.App.GRPCPort); err != nil {
 			slog.Error("error during gRPC-server running: ", slog.Any("err", err))
 		}
 	}()
