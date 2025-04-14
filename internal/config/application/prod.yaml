@@ -1,0 +1,10 @@
+host: "localhost"
+service_name: "pvz"
+tracer_port: 4317
+rest_port: 9000
+grpc_port: 9001
+monitoring_port: 9002
+env: "prod"
+write_timeout: 15s
+read_timeout: 15s
+cache_update: 360s

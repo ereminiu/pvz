@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package order_info;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/api";
+
+message OrderInfo {
+    int32 order_id = 1;
+    int32 user_id = 2;
+    int32 expire_after = 3;
+    int32 weight = 4;
+    int32 price = 5;
+    string packing = 6;
+    bool extra = 7;
+    string status = 8;
+    google.protobuf.Timestamp expire_at = 9;
+    google.protobuf.Timestamp update_at = 10;
+    google.protobuf.Timestamp created_at = 11;
+}

@@ -1,0 +1,1 @@
+goose -dir internal/migrations postgres "postgresql://postgres:qwerty@127.0.0.1:5436/postgres?sslmode=disable" up

@@ -1,0 +1,39 @@
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - goconst
+    - goimports
+    - gofmt
+    - lll
+    - gosec
+    - govet
+    - ineffassign
+    - gosimple
+    - staticcheck
+    - revive
+    - typecheck
+    - errorlint
+    - gochecknoglobals
+    - gocognit
+    - sqlclosecheck
+    - thelper
+    - gocyclo
+    - cyclop
+    - whitespace
+    - unused
+
+linters-settings:
+  cyclop:
+    max-complexity: 10
+  
+  gocognit:
+    min-complexity: 10
+  
+  lll:
+    line-lenght: 120
+    tab-width: 1
+  
+  gofmt:
+    fix: true
+    simplify: true

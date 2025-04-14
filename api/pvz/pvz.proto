@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package pvz;
+
+import "api/order_info/order_info.proto";
+
+option go_package = "/api";
+
+message RefundListRequest {
+    int32 page = 1;
+    int32 limit = 2;
+    string order_by = 3;
+
+    map<string, string> pattern = 4;
+}
+
+message RefundListResponse {
+    repeated order_info.OrderInfo orders = 1;
+}
+
+message HistoryListRequest {
+    int32 page = 1;
+    int32 limit = 2;
+    string order_by = 3;
+
+    map<string, string> pattern = 4;
+}
+
+message HistoryListResponse {
+   repeated order_info.OrderInfo orders = 1;
+}
+
+service PVZ {
+    rpc RefundList(RefundListRequest) returns (RefundListResponse) {}
+    rpc HistoryList(HistoryListRequest) returns (HistoryListResponse) {}
+}

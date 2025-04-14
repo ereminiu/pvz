@@ -1,0 +1,117 @@
+services:
+  pvz:
+    build: ./
+    command: ./wait-for-postgres.sh db ./pvz
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+      - "9002:9002"
+    depends_on:
+      - db
+      - redis
+      - kafka 
+      - kafka-ui
+      - jaeger
+    environment:
+      - MODE=prod
+      - DB_PASSWORD=qwerty
+      - ENV=prod
+    networks:
+      - jaeger-net
+      - kafka-net
+
+  db:
+    restart: always
+    image: postgres:latest
+    volumes:
+      - pgdata:/val/lib/postgres/data
+      - ./init.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    environment:
+      - POSTGRES_PASSWORD=qwerty
+    ports:
+      - "5436:5432"
+    networks:
+      - kafka-net
+  
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - kafka-net
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.1
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_INIT_LIMIT: 3
+      ZOOKEEPER_SYNC_LIMIT: 2
+    networks:
+      - kafka-net
+  
+  kafka:
+    image: confluentinc/cp-server:7.7.1
+    hostname: kafka
+    container_name: kafka
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+     - "9092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./kafka_data/:/kafka
+    networks:
+      - kafka-net
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports: 
+      - 9020:8080
+    environment:
+      AUTH_TYPE: DISABLED
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29091
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      - kafka
+    networks:
+      - kafka-net
+  
+  jaeger: 
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - LOG_LEVEL=debug
+    networks:
+      - jaeger-net
+
+networks:
+  kafka-net:
+    driver: bridge
+  jaeger-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redis_data:
